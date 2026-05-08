@@ -1,0 +1,1447 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live Option Chain</title>
+  <style>
+    :root {
+      --bg: #f4f6f7;
+      --panel: #ffffff;
+      --ink: #142024;
+      --muted: #637176;
+      --line: #d7dee1;
+      --call: #0a7a57;
+      --put: #b23636;
+      --accent: #136f8f;
+      --warn: #9b6a00;
+      --shadow: 0 14px 34px rgba(30, 44, 50, 0.09);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 5px;
+    }
+
+    .connection-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    .field,
+    .select,
+    .button {
+      min-height: 30px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      padding: 0 11px;
+    }
+
+    .field {
+      width: min(360px, 48vw);
+    }
+
+    .button {
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      font-weight: 650;
+    }
+
+    .button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .button.danger {
+      border-color: #c95a5a;
+      color: #8d2525;
+    }
+
+    .market-strip {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(112px, 1fr));
+      gap: 1px;
+      padding: 1px;
+      background: var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .metric {
+      background: var(--panel);
+      padding: 7px 10px;
+      min-width: 0;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 15px;
+      line-height: 1.1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(760px, 1fr) 300px;
+      gap: 10px;
+      padding: 10px;
+      height: calc(100vh - 158px);
+      min-height: 0;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-title {
+      font-weight: 750;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 99px;
+      background: var(--warn);
+      box-shadow: 0 0 0 3px rgba(155, 106, 0, 0.12);
+    }
+
+    .dot.live {
+      background: var(--call);
+      box-shadow: 0 0 0 3px rgba(10, 122, 87, 0.13);
+    }
+
+    .dot.offline {
+      background: #909da1;
+      box-shadow: 0 0 0 3px rgba(99, 113, 118, 0.13);
+    }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 8px 10px 0;
+      background: var(--bg);
+    }
+
+    .tab-button {
+      min-height: 30px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px 6px 0 0;
+      padding: 7px 14px;
+      color: var(--muted);
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .tab-button.active {
+      color: #fff;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .tab-page {
+      display: none;
+      height: 100%;
+    }
+
+    .tab-page.active {
+      display: block;
+    }
+
+    .chain-wrap {
+      overflow: auto;
+      height: calc(100% - 43px);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      min-width: 960px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid #edf0f1;
+      padding: 5px 7px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f8fafb;
+      color: #59676c;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    td {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .center,
+    th.center {
+      text-align: center;
+    }
+
+    .strike {
+      background: #f7f8f4;
+      color: #1f2c24;
+      font-weight: 800;
+    }
+
+    tr.atm td {
+      background: #fff5d7;
+      border-top: 1px solid #e8c661;
+      border-bottom: 1px solid #e8c661;
+    }
+
+    tr.atm .strike {
+      color: #6c4700;
+    }
+
+    .call,
+    .up {
+      color: var(--call);
+    }
+
+    .put,
+    .down {
+      color: var(--put);
+    }
+
+    .log {
+      height: 140px;
+      overflow: auto;
+      padding: 8px 10px 10px;
+      color: var(--muted);
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      background: #fbfcfc;
+      border-radius: 0 0 8px 8px;
+    }
+
+    .settings {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 10px;
+    }
+
+    aside {
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .oi-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 10px;
+      height: calc(100% - 43px);
+      overflow: auto;
+    }
+
+    .oi-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .oi-card.wide {
+      grid-column: 1 / -1;
+    }
+
+    .mini-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 750;
+    }
+
+    .chart-controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 8px;
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .ad-list {
+      padding: 10px 12px;
+      display: grid;
+      gap: 8px;
+      max-height: 260px;
+      overflow: auto;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 74px 1fr 1fr;
+      align-items: center;
+      gap: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bar-track {
+      height: 18px;
+      background: #edf0f1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: var(--w, 0%);
+    }
+
+    .bar-fill.call-bar {
+      margin-left: auto;
+      background: rgba(10, 122, 87, 0.74);
+    }
+
+    .bar-fill.put-bar {
+      background: rgba(178, 54, 54, 0.74);
+    }
+
+    .ad-list {
+      grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+    }
+
+    .ad-chip {
+      border: 1px solid var(--line);
+      border-left: 4px solid #909da1;
+      border-radius: 6px;
+      padding: 7px;
+      min-width: 0;
+      background: #fbfcfc;
+      font-size: 12px;
+    }
+
+    .ad-chip.up {
+      border-left-color: var(--call);
+    }
+
+    .ad-chip.down {
+      border-left-color: var(--put);
+    }
+
+    .ad-chip strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--ink);
+    }
+
+    canvas {
+      width: 100%;
+      height: 250px;
+      display: block;
+    }
+
+    .short-chart {
+      height: 230px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    label input,
+    label select {
+      width: 100%;
+    }
+
+    @media (max-width: 1080px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .chain-wrap {
+        min-height: auto;
+        max-height: none;
+      }
+
+      .oi-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .connection-bar {
+        justify-content: stretch;
+      }
+
+      .field {
+        width: 100%;
+        flex: 1 1 100%;
+      }
+
+      .select,
+      .button {
+        flex: 1 1 calc(50% - 8px);
+      }
+
+      .market-strip {
+        grid-template-columns: repeat(2, minmax(130px, 1fr));
+      }
+
+      .workspace {
+        padding: 10px;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Live Option Chain</h1>
+        <div class="subtle">WebSocket-ready dashboard for NIFTY, BANKNIFTY, and SENSEX</div>
+      </div>
+      <div class="connection-bar">
+        <select id="symbolSelect" class="select" aria-label="Index">
+          <option value="NIFTY">NIFTY</option>
+          <option value="BANKNIFTY">BANKNIFTY</option>
+          <option value="SENSEX">SENSEX</option>
+        </select>
+        <input id="wsUrl" class="field" type="url" value="ws://127.0.0.1:8765" aria-label="WebSocket URL">
+        <button id="connectBtn" class="button primary" type="button">Connect</button>
+        <button id="mockBtn" class="button" type="button">Mock Stream</button>
+        <button id="disconnectBtn" class="button danger" type="button">Stop</button>
+      </div>
+    </header>
+
+    <section class="market-strip" aria-label="Live market metrics">
+      <div class="metric"><span>Spot</span><strong id="spotValue">-</strong></div>
+      <div class="metric"><span>ATM Strike</span><strong id="atmValue">-</strong></div>
+      <div class="metric"><span>ATM Straddle</span><strong id="straddleValue">-</strong></div>
+      <div class="metric"><span>2SD Range</span><strong id="sdRangeValue">-</strong></div>
+      <div class="metric"><span>PCR OI</span><strong id="pcrValue">-</strong></div>
+      <div class="metric"><span>Max Pain</span><strong id="maxPainValue">-</strong></div>
+      <div class="metric"><span>Date Time</span><strong id="dateTimeValue">-</strong></div>
+    </section>
+
+    <nav class="tabs" aria-label="Dashboard tabs">
+      <button class="tab-button active" type="button" data-tab="chainPage">Option Chain</button>
+      <button class="tab-button" type="button" data-tab="oiPage">OI Tab</button>
+    </nav>
+
+    <section class="workspace">
+      <section id="chainPage" class="panel tab-page active">
+        <div class="panel-head">
+          <div class="panel-title">Option Chain</div>
+          <div class="status"><span id="statusDot" class="dot offline"></span><span id="statusText">Offline</span></div>
+        </div>
+        <div class="chain-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="center">Strike Price</th>
+                <th>Straddle Price</th>
+                <th>Straddle %</th>
+                <th>Call Price</th>
+                <th>Call Price Chg</th>
+                <th>Put Price</th>
+                <th>Put Price Chg</th>
+                <th>Session Change</th>
+              </tr>
+            </thead>
+            <tbody id="chainBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="oiPage" class="panel tab-page">
+          <div class="panel-head">
+            <div class="panel-title">OI Representation</div>
+            <div class="subtle">OI ladder, constituent advance/decline, and intraday call/put OI</div>
+          </div>
+          <div class="oi-grid">
+            <section class="oi-card">
+              <div class="mini-head"><span>OI Ladder</span><span id="ladderMeta">-</span></div>
+              <div class="chart-controls">
+                <label>Strikes
+                  <input id="ladderStrikeCount" class="field" type="number" min="3" max="60" value="15">
+                </label>
+              </div>
+              <canvas id="oiLadderCanvas" class="short-chart" width="760" height="260"></canvas>
+            </section>
+            <section class="oi-card">
+              <div class="mini-head"><span>Advance / Decline</span><span id="adMeta">-</span></div>
+              <div id="adList" class="ad-list"></div>
+            </section>
+            <section class="oi-card wide">
+              <div class="mini-head"><span>OI</span><span id="oiChartMeta">-</span></div>
+              <div class="chart-controls">
+                <label>Call Strike
+                  <select id="callStrikeSelect" class="select"></select>
+                </label>
+                <label>Put Strike
+                  <select id="putStrikeSelect" class="select"></select>
+                </label>
+                <label>Data
+                  <button id="loadHistoryBtn" class="button" type="button">Load 9:15 Data</button>
+                </label>
+              </div>
+              <canvas id="oiIntradayCanvas" width="1200" height="260"></canvas>
+            </section>
+            <section class="oi-card wide">
+              <div class="mini-head"><span>Price</span><span id="priceChartMeta">-</span></div>
+              <canvas id="priceIntradayCanvas" width="1200" height="260"></canvas>
+            </section>
+          </div>
+      </section>
+
+      <aside>
+        <section class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Stream Settings</div>
+          </div>
+          <div class="settings">
+            <label>Expiry
+              <select id="expiryInput" class="select"></select>
+            </label>
+            <label>Strike Step
+              <select id="stepSelect" class="select">
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Event Log</div>
+          </div>
+          <div id="eventLog" class="log"></div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const MAX_TICKS = 5000;
+    const state = {
+      ws: null,
+      mockTimer: null,
+      ticks: [],
+      chain: new Map(),
+      symbol: 'NIFTY',
+      spot: 22400,
+      lastSpot: 22400,
+      advanceDecline: [],
+      oiHistory: [],
+      priceHistory: [],
+      expiries: {},
+      lastAdMessage: '',
+      crosshair: {
+        oi: null,
+        price: null
+      },
+      scheduled: false,
+      tickCounter: 0
+    };
+
+    const symbolDefaults = {
+      NIFTY: { spot: 22400, step: 50 },
+      BANKNIFTY: { spot: 48500, step: 100 },
+      SENSEX: { spot: 74000, step: 100 }
+    };
+
+    const els = {
+      symbolSelect: document.querySelector('#symbolSelect'),
+      wsUrl: document.querySelector('#wsUrl'),
+      connectBtn: document.querySelector('#connectBtn'),
+      mockBtn: document.querySelector('#mockBtn'),
+      disconnectBtn: document.querySelector('#disconnectBtn'),
+      expiryInput: document.querySelector('#expiryInput'),
+      stepSelect: document.querySelector('#stepSelect'),
+      chainBody: document.querySelector('#chainBody'),
+      statusDot: document.querySelector('#statusDot'),
+      statusText: document.querySelector('#statusText'),
+      eventLog: document.querySelector('#eventLog'),
+      spotValue: document.querySelector('#spotValue'),
+      atmValue: document.querySelector('#atmValue'),
+      straddleValue: document.querySelector('#straddleValue'),
+      sdRangeValue: document.querySelector('#sdRangeValue'),
+      pcrValue: document.querySelector('#pcrValue'),
+      maxPainValue: document.querySelector('#maxPainValue'),
+      dateTimeValue: document.querySelector('#dateTimeValue'),
+      ladderStrikeCount: document.querySelector('#ladderStrikeCount'),
+      oiLadderCanvas: document.querySelector('#oiLadderCanvas'),
+      ladderMeta: document.querySelector('#ladderMeta'),
+      adList: document.querySelector('#adList'),
+      adMeta: document.querySelector('#adMeta'),
+      oiCanvas: document.querySelector('#oiIntradayCanvas'),
+      oiChartMeta: document.querySelector('#oiChartMeta'),
+      priceCanvas: document.querySelector('#priceIntradayCanvas'),
+      priceChartMeta: document.querySelector('#priceChartMeta'),
+      callStrikeSelect: document.querySelector('#callStrikeSelect'),
+      putStrikeSelect: document.querySelector('#putStrikeSelect'),
+      loadHistoryBtn: document.querySelector('#loadHistoryBtn')
+    };
+
+    function nextThursdayDate() {
+      const date = new Date();
+      const diff = (4 - date.getDay() + 7) % 7 || 7;
+      date.setDate(date.getDate() + diff);
+      return date.toISOString().slice(0, 10);
+    }
+
+    function formatNumber(value, decimals = 2) {
+      if (!Number.isFinite(Number(value))) return '-';
+      return Number(value).toLocaleString('en-IN', {
+        maximumFractionDigits: decimals,
+        minimumFractionDigits: decimals
+      });
+    }
+
+    function log(message) {
+      const time = new Date().toLocaleTimeString('en-IN', { hour12: false });
+      els.eventLog.insertAdjacentHTML('afterbegin', `<div>[${time}] ${message}</div>`);
+    }
+
+    function setStatus(text, mode) {
+      els.statusText.textContent = text;
+      els.statusDot.className = `dot ${mode || ''}`.trim();
+    }
+
+    function currentStep() {
+      return Number(els.stepSelect.value);
+    }
+
+    function setExpiryOptions(expiries, selected) {
+      const cleanExpiries = Array.isArray(expiries) && expiries.length ? expiries : [selected || nextThursdayDate()];
+      const current = selected || els.expiryInput.value || cleanExpiries[0];
+      els.expiryInput.innerHTML = cleanExpiries.map(expiry => `<option value="${expiry}">${expiry}</option>`).join('');
+      els.expiryInput.value = cleanExpiries.includes(current) ? current : cleanExpiries[0];
+    }
+
+    function updateClock() {
+      els.dateTimeValue.textContent = new Date().toLocaleString('en-IN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+    }
+
+    function atmStraddle() {
+      const atm = atmStrike();
+      return getLeg(atm, 'CE').ltp + getLeg(atm, 'PE').ltp;
+    }
+
+    function sdPoints() {
+      return Math.max(currentStep(), atmStraddle());
+    }
+
+    function visibleStrikes() {
+      const step = currentStep();
+      const atm = atmStrike();
+      const range = sdPoints() * 2;
+      const low = Math.floor((atm - range) / step) * step;
+      const high = Math.ceil((atm + range) / step) * step;
+      const strikes = [];
+      for (let strike = low; strike <= high; strike += step) strikes.push(strike);
+      return strikes;
+    }
+
+    function ladderStrikes() {
+      const count = Math.max(3, Math.min(60, Number(els.ladderStrikeCount.value) || 15));
+      const step = currentStep();
+      const atm = atmStrike();
+      const half = Math.floor(count / 2);
+      const start = atm - half * step;
+      return Array.from({ length: count }, (_, index) => start + index * step);
+    }
+
+    function sendSubscription() {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+      state.ws.send(JSON.stringify({
+        action: 'subscribe',
+        symbol: state.symbol,
+        expiry: els.expiryInput.value
+      }));
+    }
+
+    function requestStrikeHistory() {
+      if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+        log('Connect WebSocket before loading 9:15 strike history.');
+        return;
+      }
+      if (!els.callStrikeSelect.value || !els.putStrikeSelect.value) return;
+      state.ws.send(JSON.stringify({
+        action: 'history',
+        symbol: state.symbol,
+        expiry: els.expiryInput.value,
+        call_strike: Number(els.callStrikeSelect.value),
+        put_strike: Number(els.putStrikeSelect.value)
+      }));
+      els.oiChartMeta.textContent = 'loading';
+      els.priceChartMeta.textContent = 'loading';
+      log(`Loading 9:15 history for CE ${els.callStrikeSelect.value} and PE ${els.putStrikeSelect.value}.`);
+    }
+
+    function atmStrike() {
+      const step = currentStep();
+      return Math.round(state.spot / step) * step;
+    }
+
+    function instrumentKey(strike, type) {
+      return `${state.symbol}:${els.expiryInput.value}:${strike}:${type}`;
+    }
+
+    function emptyLeg(strike, type) {
+      return {
+        strike,
+        type,
+        ltp: 0,
+        open: 0,
+        previousClose: 0,
+        bid: 0,
+        volume: 0,
+        oi: 0
+      };
+    }
+
+    function getLeg(strike, type) {
+      const key = instrumentKey(strike, type);
+      if (!state.chain.has(key)) state.chain.set(key, emptyLeg(strike, type));
+      return state.chain.get(key);
+    }
+
+    function seedChain(useMockValues = false) {
+      state.chain.clear();
+      const atm = atmStrike();
+      const step = currentStep();
+      const seedRange = step * 80;
+      for (let strike = atm - seedRange; strike <= atm + seedRange; strike += step) {
+        ['CE', 'PE'].forEach(type => {
+          const leg = getLeg(strike, type);
+          if (useMockValues) {
+            const distance = Math.abs(strike - state.spot);
+            const intrinsic = type === 'CE'
+              ? Math.max(0, state.spot - strike)
+              : Math.max(0, strike - state.spot);
+            const timeValue = Math.max(8, 180 - distance * 0.18);
+            const ltp = intrinsic + timeValue + Math.random() * 8;
+            leg.ltp = ltp;
+            leg.open = ltp * (0.98 + Math.random() * 0.04);
+            leg.previousClose = ltp * (0.97 + Math.random() * 0.06);
+            leg.bid = Math.max(0.05, ltp - 0.4 - Math.random());
+            leg.volume = Math.floor(8000 + Math.random() * 160000);
+            leg.oi = Math.floor(50000 + Math.random() * 1200000);
+          }
+        });
+      }
+      scheduleRender();
+    }
+
+    function normalizeTick(raw) {
+      if (raw.type === 'hello') {
+        return { meta: true, hello: true, indices: raw.indices || {} };
+      }
+
+      if (raw.type === 'error') {
+        return { meta: true, error: raw.message || 'Bridge error' };
+      }
+
+      if (raw.type === 'strike_history') {
+        return { meta: true, strikeHistory: true, payload: raw };
+      }
+
+      if (raw.type === 'advance_decline') {
+        return {
+          meta: true,
+          advanceDecline: true,
+          symbol: raw.symbol,
+          items: raw.items || []
+        };
+      }
+
+      if (raw.spot || raw.index || raw.underlying) {
+        return {
+          symbol: raw.symbol || raw.index || state.symbol,
+          spot: Number(raw.spot || raw.underlying || raw.last_price),
+          time: raw.time || raw.timestamp || Date.now()
+        };
+      }
+
+      return {
+        symbol: raw.symbol || raw.index || state.symbol,
+        expiry: raw.expiry || els.expiryInput.value,
+        strike: Number(raw.strike),
+        type: raw.type || raw.option_type || raw.instrument_type,
+        ltp: Number(raw.ltp || raw.last_price),
+        open: Number(raw.open || raw.ohlc?.open || 0),
+        previousClose: Number(raw.previous_close || raw.close || raw.ohlc?.close || 0),
+        bid: Number(raw.bid || raw.best_bid_price || raw.depth?.buy?.[0]?.price || 0),
+        volume: Number(raw.volume || raw.volume_traded || 0),
+        oi: Number(raw.oi || raw.open_interest || 0),
+        time: raw.time || raw.last_trade_time || raw.exchange_timestamp || Date.now()
+      };
+    }
+
+    function ingest(rawTick) {
+      const tick = normalizeTick(rawTick);
+      if (tick.meta) {
+        if (tick.hello) {
+          state.expiries = tick.indices;
+          const current = state.expiries[state.symbol];
+          setExpiryOptions(current?.expiries, current?.expiry);
+          log('Bridge metadata loaded.');
+          sendSubscription();
+          scheduleRender();
+        }
+        if (tick.error) log(tick.error);
+        if (tick.strikeHistory) {
+          applyStrikeHistory(tick.payload);
+          scheduleRender();
+        }
+        if (tick.advanceDecline && tick.symbol === state.symbol) {
+          state.advanceDecline = tick.items;
+          if (tick.message && tick.message !== state.lastAdMessage) {
+            state.lastAdMessage = tick.message;
+            log(tick.message);
+          }
+          scheduleRender();
+        }
+        return;
+      }
+      if (tick.symbol && tick.symbol !== state.symbol) return;
+      if (
+        Number.isFinite(tick.strike)
+        && tick.expiry
+        && tick.expiry !== els.expiryInput.value
+      ) {
+        return;
+      }
+
+      state.tickCounter += 1;
+      state.ticks.push(tick);
+      if (state.ticks.length > MAX_TICKS) state.ticks.shift();
+
+      if (Number.isFinite(tick.spot)) {
+        state.lastSpot = state.spot;
+        state.spot = tick.spot;
+      }
+
+      if (Number.isFinite(tick.strike) && (tick.type === 'CE' || tick.type === 'PE')) {
+        const leg = getLeg(tick.strike, tick.type);
+        Object.assign(leg, {
+          ltp: tick.ltp || leg.ltp,
+          open: tick.open || leg.open,
+          previousClose: tick.previousClose || leg.previousClose,
+          bid: tick.bid || leg.bid,
+          volume: tick.volume || leg.volume,
+          oi: tick.oi || leg.oi
+        });
+      }
+
+      scheduleRender();
+    }
+
+    function scheduleRender() {
+      if (state.scheduled) return;
+      state.scheduled = true;
+      requestAnimationFrame(() => {
+        render();
+        state.scheduled = false;
+      });
+    }
+
+    function calculateMaxPain(strikes) {
+      let bestStrike = strikes[0];
+      let bestPain = Number.POSITIVE_INFINITY;
+      for (const settlement of strikes) {
+        let pain = 0;
+        for (const strike of strikes) {
+          const ce = getLeg(strike, 'CE');
+          const pe = getLeg(strike, 'PE');
+          pain += Math.max(0, settlement - strike) * ce.oi;
+          pain += Math.max(0, strike - settlement) * pe.oi;
+        }
+        if (pain < bestPain) {
+          bestPain = pain;
+          bestStrike = settlement;
+        }
+      }
+      return bestStrike;
+    }
+
+    function sessionChange(strike) {
+      const ce = getLeg(strike, 'CE');
+      const pe = getLeg(strike, 'PE');
+      const openingStraddle = (ce.open || ce.previousClose) + (pe.open || pe.previousClose);
+      return (ce.ltp + pe.ltp) - openingStraddle;
+    }
+
+    function updateStrikeHistory() {
+      if (!els.callStrikeSelect.value || !els.putStrikeSelect.value) return;
+      const ce = getLeg(Number(els.callStrikeSelect.value), 'CE');
+      const pe = getLeg(Number(els.putStrikeSelect.value), 'PE');
+      const now = Date.now();
+      const last = state.oiHistory[state.oiHistory.length - 1];
+      if (!last || now - last.time >= 30000) {
+        state.oiHistory.push({ time: now, CE: ce.oi, PE: pe.oi });
+        state.priceHistory.push({ time: now, CE: ce.ltp, PE: pe.ltp });
+        if (state.oiHistory.length > 240) state.oiHistory.shift();
+        if (state.priceHistory.length > 240) state.priceHistory.shift();
+      } else {
+        last.CE = ce.oi;
+        last.PE = pe.oi;
+        const priceLast = state.priceHistory[state.priceHistory.length - 1];
+        if (priceLast) {
+          priceLast.CE = ce.ltp;
+          priceLast.PE = pe.ltp;
+        }
+      }
+    }
+
+    function renderOiLadder(strikes) {
+      const rows = ladderStrikes().map(strike => {
+        const ceOi = getLeg(strike, 'CE').oi;
+        const peOi = getLeg(strike, 'PE').oi;
+        return { strike, ceOi, peOi, total: ceOi + peOi };
+      });
+      drawBarAxisChart(els.oiLadderCanvas, rows, 'ceOi', 'peOi', '#0a7a57', '#b23636');
+      els.ladderMeta.textContent = `${rows.length} strikes`;
+    }
+
+    function syncStrikeSelectors(strikes) {
+      const existingCall = els.callStrikeSelect.value;
+      const existingPut = els.putStrikeSelect.value;
+      const options = strikes.map(strike => `<option value="${strike}">${formatNumber(strike, 0)}</option>`).join('');
+      if (els.callStrikeSelect.dataset.options !== options) {
+        els.callStrikeSelect.innerHTML = options;
+        els.putStrikeSelect.innerHTML = options;
+        els.callStrikeSelect.dataset.options = options;
+        const atm = String(atmStrike());
+        els.callStrikeSelect.value = strikes.includes(Number(existingCall)) ? existingCall : atm;
+        els.putStrikeSelect.value = strikes.includes(Number(existingPut)) ? existingPut : atm;
+      }
+    }
+
+    function applyStrikeHistory(payload) {
+      if (payload.symbol !== state.symbol || payload.expiry !== els.expiryInput.value) return;
+      const ce = payload.history?.CE || [];
+      const pe = payload.history?.PE || [];
+      const maxLength = Math.max(ce.length, pe.length);
+      if (!maxLength) {
+        log('No 9:15 historical rows returned for selected strikes.');
+        els.oiChartMeta.textContent = 'no data';
+        els.priceChartMeta.textContent = 'no data';
+        return;
+      }
+      state.oiHistory = [];
+      state.priceHistory = [];
+      for (let index = 0; index < maxLength; index += 1) {
+        const ceRow = ce[index] || {};
+        const peRow = pe[index] || {};
+        const time = new Date(ceRow.time || peRow.time || Date.now()).getTime();
+        state.oiHistory.push({ time, CE: Number(ceRow.oi || 0), PE: Number(peRow.oi || 0) });
+        state.priceHistory.push({ time, CE: Number(ceRow.price || 0), PE: Number(peRow.price || 0) });
+      }
+      log('9:15 strike history loaded.');
+    }
+
+    function renderAdvanceDecline() {
+      const items = state.advanceDecline;
+      const advances = items.filter(item => Number(item.change) > 0).length;
+      const declines = items.filter(item => Number(item.change) < 0).length;
+      els.adMeta.textContent = items.length ? `${advances} up / ${declines} down` : 'waiting';
+      els.adList.innerHTML = items.length ? items.map(item => `
+        <div class="ad-chip ${Number(item.change) >= 0 ? 'up' : 'down'}">
+          <strong>${item.symbol || item.tradingsymbol}</strong>
+          <span class="${Number(item.change) >= 0 ? 'up' : 'down'}">${formatNumber(item.change || 0)}</span>
+          <span>${formatNumber(item.last_price || 0)}</span>
+        </div>
+      `).join('') : '<div class="subtle">No constituent quotes received yet. Check Event Log for bridge/API errors.</div>';
+    }
+
+    function drawAxes(context, width, height, min, max) {
+      context.strokeStyle = '#d7dee1';
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(48, 14);
+      context.lineTo(48, height - 30);
+      context.lineTo(width - 18, height - 30);
+      context.stroke();
+      context.fillStyle = '#637176';
+      context.font = '11px system-ui';
+      for (let i = 0; i <= 4; i += 1) {
+        const y = 18 + i * ((height - 52) / 4);
+        const value = max - i * ((max - min) / 4);
+        context.strokeStyle = '#edf0f1';
+        context.beginPath();
+        context.moveTo(48, y);
+        context.lineTo(width - 18, y);
+        context.stroke();
+        context.fillText(formatNumber(value, 0), 4, y + 4);
+      }
+    }
+
+    function drawBarAxisChart(canvas, rows, callKey, putKey, callColor, putColor) {
+      const context = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+      context.clearRect(0, 0, width, height);
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, width, height);
+      const max = Math.max(1, ...rows.flatMap(row => [row[callKey], row[putKey]]));
+      drawAxes(context, width, height, 0, max);
+      const plotW = width - 76;
+      const barW = Math.max(4, plotW / Math.max(1, rows.length) / 2.8);
+      rows.forEach((row, index) => {
+        const center = 54 + index * (plotW / Math.max(1, rows.length - 1));
+        const yCall = height - 30 - (row[callKey] / max) * (height - 52);
+        const yPut = height - 30 - (row[putKey] / max) * (height - 52);
+        context.fillStyle = callColor;
+        context.fillRect(center - barW - 1, yCall, barW, height - 30 - yCall);
+        context.fillStyle = putColor;
+        context.fillRect(center + 1, yPut, barW, height - 30 - yPut);
+        if (index % Math.ceil(rows.length / 8) === 0) {
+          context.save();
+          context.translate(center - 12, height - 8);
+          context.rotate(-0.45);
+          context.fillStyle = '#637176';
+          context.fillText(formatNumber(row.strike, 0), 0, 0);
+          context.restore();
+        }
+      });
+    }
+
+    function drawLineAxisChart(canvas, points, label, metaElement, valueKey) {
+      const context = canvas.getContext('2d');
+      const width = canvas.width;
+      const height = canvas.height;
+      context.clearRect(0, 0, width, height);
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, width, height);
+      if (points.length < 2) {
+        context.fillStyle = '#637176';
+        context.fillText(`Load or collect ${label} data...`, 56, 48);
+        metaElement.textContent = 'waiting';
+        return;
+      }
+      const values = points.flatMap(item => [item.CE, item.PE]).filter(Number.isFinite);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const span = Math.max(1, max - min);
+      drawAxes(context, width, height, min, max);
+      const xFor = index => 48 + index * ((width - 70) / (points.length - 1));
+      const yFor = value => height - 30 - ((value - min) / span) * (height - 52);
+      const indexForX = x => Math.max(0, Math.min(points.length - 1, Math.round(((x - 48) / (width - 70)) * (points.length - 1))));
+      context.fillStyle = '#637176';
+      context.font = '11px system-ui';
+      [0, Math.floor(points.length / 2), points.length - 1].forEach(index => {
+        const item = points[index];
+        if (!item) return;
+        const labelText = new Date(item.time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+        context.fillText(labelText, xFor(index) - 14, height - 8);
+      });
+      const drawLine = (key, color) => {
+        context.strokeStyle = color;
+        context.lineWidth = 2;
+        context.beginPath();
+        points.forEach((item, index) => {
+          const x = xFor(index);
+          const y = yFor(item[key]);
+          if (index === 0) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        });
+        context.stroke();
+      };
+      drawLine('CE', '#0a7a57');
+      drawLine('PE', '#b23636');
+      const hover = label === 'OI' ? state.crosshair.oi : state.crosshair.price;
+      if (hover) {
+        const index = indexForX(hover.x);
+        const item = points[index];
+        const x = xFor(index);
+        const ceY = yFor(item.CE);
+        const peY = yFor(item.PE);
+        context.strokeStyle = '#59676c';
+        context.lineWidth = 1;
+        context.setLineDash([4, 4]);
+        context.beginPath();
+        context.moveTo(x, 14);
+        context.lineTo(x, height - 30);
+        context.moveTo(48, hover.y);
+        context.lineTo(width - 18, hover.y);
+        context.stroke();
+        context.setLineDash([]);
+        context.fillStyle = '#0a7a57';
+        context.beginPath();
+        context.arc(x, ceY, 4, 0, Math.PI * 2);
+        context.fill();
+        context.fillStyle = '#b23636';
+        context.beginPath();
+        context.arc(x, peY, 4, 0, Math.PI * 2);
+        context.fill();
+        const timeText = new Date(item.time).toLocaleString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+        metaElement.textContent = `${timeText} CE ${formatNumber(item.CE)} | PE ${formatNumber(item.PE)}`;
+      } else {
+        metaElement.textContent = `${points.length} samples`;
+      }
+    }
+
+    function drawOiIntraday() {
+      drawLineAxisChart(els.oiCanvas, state.oiHistory, 'OI', els.oiChartMeta);
+      drawLineAxisChart(els.priceCanvas, state.priceHistory, 'price', els.priceChartMeta);
+    }
+
+    function canvasPoint(event, canvas) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+        y: ((event.clientY - rect.top) / rect.height) * canvas.height
+      };
+    }
+
+    function bindCrosshair(canvas, key) {
+      canvas.addEventListener('mousemove', event => {
+        state.crosshair[key] = canvasPoint(event, canvas);
+        drawOiIntraday();
+      });
+      canvas.addEventListener('mouseleave', () => {
+        state.crosshair[key] = null;
+        drawOiIntraday();
+      });
+    }
+
+    function render() {
+      const atm = atmStrike();
+      const strikes = visibleStrikes();
+
+      let callOi = 0;
+      let putOi = 0;
+      const html = strikes.map(strike => {
+        const ce = getLeg(strike, 'CE');
+        const pe = getLeg(strike, 'PE');
+        callOi += ce.oi;
+        putOi += pe.oi;
+        const ceChange = ce.ltp - ce.previousClose;
+        const peChange = pe.ltp - pe.previousClose;
+        const straddle = ce.ltp + pe.ltp;
+        const straddlePercent = state.spot ? (straddle / state.spot) * 100 : 0;
+        const session = sessionChange(strike);
+        return `
+          <tr class="${strike === atm ? 'atm' : ''}">
+            <td class="strike center">${formatNumber(strike, 0)}</td>
+            <td>${formatNumber(straddle)}</td>
+            <td>${formatNumber(straddlePercent, 2)}</td>
+            <td>${formatNumber(ce.ltp)}</td>
+            <td class="${ceChange >= 0 ? 'up' : 'down'}">${formatNumber(ceChange)} (${formatNumber(ce.previousClose ? (ceChange / ce.previousClose) * 100 : 0, 2)}%)</td>
+            <td>${formatNumber(pe.ltp)}</td>
+            <td class="${peChange >= 0 ? 'up' : 'down'}">${formatNumber(peChange)} (${formatNumber(pe.previousClose ? (peChange / pe.previousClose) * 100 : 0, 2)}%)</td>
+            <td class="${session >= 0 ? 'up' : 'down'}">${formatNumber(session)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const atmCe = getLeg(atm, 'CE');
+      const atmPe = getLeg(atm, 'PE');
+      syncStrikeSelectors(strikes);
+      updateStrikeHistory();
+      els.chainBody.innerHTML = html;
+      els.spotValue.textContent = formatNumber(state.spot);
+      els.atmValue.textContent = formatNumber(atm, 0);
+      els.straddleValue.textContent = formatNumber(atmCe.ltp + atmPe.ltp);
+      els.sdRangeValue.textContent = `${formatNumber(strikes[0], 0)} - ${formatNumber(strikes[strikes.length - 1], 0)}`;
+      els.pcrValue.textContent = callOi ? formatNumber(putOi / callOi, 2) : '-';
+      els.maxPainValue.textContent = formatNumber(calculateMaxPain(strikes), 0);
+      renderOiLadder();
+      renderAdvanceDecline();
+      drawOiIntraday();
+    }
+
+    function connectWebSocket() {
+      stopStreams();
+      const url = els.wsUrl.value.trim();
+      if (!url) {
+        log('Enter your FastAPI or broker WebSocket URL first.');
+        setStatus('Waiting for URL', '');
+        return;
+      }
+
+      state.ws = new WebSocket(url);
+      setStatus('Connecting', '');
+      log(`Connecting to ${url}`);
+
+      state.ws.onopen = () => {
+        setStatus('Live WebSocket', 'live');
+        log('WebSocket connected.');
+        state.ws.send(JSON.stringify({
+          action: 'subscribe',
+          symbol: state.symbol,
+          expiry: els.expiryInput.value
+        }));
+      };
+
+      state.ws.onmessage = event => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (Array.isArray(payload)) payload.forEach(ingest);
+          else ingest(payload);
+        } catch (error) {
+          log(`Bad tick ignored: ${error.message}`);
+        }
+      };
+
+      state.ws.onerror = () => log('WebSocket error.');
+      state.ws.onclose = () => {
+        setStatus('Offline', 'offline');
+        log('WebSocket closed.');
+      };
+    }
+
+    function stopStreams() {
+      if (state.ws) {
+        state.ws.close();
+        state.ws = null;
+      }
+      if (state.mockTimer) {
+        clearInterval(state.mockTimer);
+        state.mockTimer = null;
+      }
+      setStatus('Offline', 'offline');
+    }
+
+    function randomWalk(base, spread) {
+      return base + (Math.random() - 0.5) * spread;
+    }
+
+    function startMockStream() {
+      stopStreams();
+      seedChain(true);
+      setStatus('Mock Stream', 'live');
+      log('Mock stream started.');
+      state.advanceDecline = makeMockAdvanceDecline();
+      state.mockTimer = setInterval(() => {
+        const step = currentStep();
+        state.spot = randomWalk(state.spot, step * 0.16);
+        ingest({ symbol: state.symbol, spot: state.spot, time: Date.now() });
+
+        const atm = atmStrike();
+        for (let i = 0; i < 10; i += 1) {
+          const strikes = visibleStrikes();
+          const strike = strikes[Math.floor(Math.random() * strikes.length)];
+          const type = Math.random() > 0.5 ? 'CE' : 'PE';
+          const leg = getLeg(strike, type);
+          const intrinsic = type === 'CE'
+            ? Math.max(0, state.spot - strike)
+            : Math.max(0, strike - state.spot);
+          const distance = Math.abs(strike - state.spot);
+          const fair = intrinsic + Math.max(5, 180 - distance * 0.18);
+          ingest({
+            symbol: state.symbol,
+            expiry: els.expiryInput.value,
+            strike,
+            type,
+            ltp: Math.max(0.05, leg.ltp * 0.85 + fair * 0.15 + randomWalk(0, 3)),
+            previous_close: leg.previousClose,
+            open: leg.open,
+            bid: Math.max(0.05, leg.bid + randomWalk(0, 1.2)),
+            volume: Math.max(0, leg.volume + Math.floor(Math.random() * 800)),
+            oi: Math.max(0, leg.oi + Math.floor(randomWalk(0, 6000))),
+            time: Date.now()
+          });
+        }
+        if (Math.random() > 0.72) state.advanceDecline = makeMockAdvanceDecline();
+      }, 180);
+    }
+
+    function makeMockAdvanceDecline() {
+      const names = ['RELIANCE', 'HDFCBANK', 'ICICIBANK', 'INFY', 'TCS', 'LT', 'ITC', 'SBIN', 'AXISBANK', 'BHARTIARTL', 'KOTAKBANK', 'HINDUNILVR', 'BAJFINANCE', 'MARUTI', 'SUNPHARMA', 'TITAN', 'ULTRACEMCO', 'WIPRO', 'ONGC', 'NTPC'];
+      return names.map(symbol => ({ symbol, change: randomWalk(0, 2.8) }));
+    }
+
+    function resetSymbol() {
+      const defaults = symbolDefaults[els.symbolSelect.value];
+      state.symbol = els.symbolSelect.value;
+      state.spot = defaults.spot;
+      state.lastSpot = defaults.spot;
+      els.stepSelect.value = defaults.step;
+      state.tickCounter = 0;
+      state.ticks = [];
+      state.advanceDecline = [];
+      state.oiHistory = [];
+      state.priceHistory = [];
+      state.crosshair.oi = null;
+      state.crosshair.price = null;
+      const expiryMeta = state.expiries[state.symbol];
+      setExpiryOptions(expiryMeta?.expiries, expiryMeta?.expiry || els.expiryInput.value);
+      els.callStrikeSelect.dataset.options = '';
+      seedChain();
+      sendSubscription();
+      log(`Loaded ${state.symbol}.`);
+    }
+
+    function resetExpiry() {
+      state.chain.clear();
+      state.oiHistory = [];
+      state.priceHistory = [];
+      state.crosshair.oi = null;
+      state.crosshair.price = null;
+      els.callStrikeSelect.dataset.options = '';
+      seedChain();
+      sendSubscription();
+      log(`Loaded expiry ${els.expiryInput.value}.`);
+    }
+
+    els.connectBtn.addEventListener('click', connectWebSocket);
+    els.mockBtn.addEventListener('click', startMockStream);
+    els.disconnectBtn.addEventListener('click', () => {
+      stopStreams();
+      log('Stream stopped.');
+    });
+    els.symbolSelect.addEventListener('change', resetSymbol);
+    els.stepSelect.addEventListener('change', seedChain);
+    els.expiryInput.addEventListener('change', resetExpiry);
+    els.ladderStrikeCount.addEventListener('change', scheduleRender);
+    els.callStrikeSelect.addEventListener('change', requestStrikeHistory);
+    els.putStrikeSelect.addEventListener('change', requestStrikeHistory);
+    els.loadHistoryBtn.addEventListener('click', requestStrikeHistory);
+    bindCrosshair(els.oiCanvas, 'oi');
+    bindCrosshair(els.priceCanvas, 'price');
+    document.querySelectorAll('[data-tab]').forEach(button => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('[data-tab]').forEach(item => item.classList.remove('active'));
+        document.querySelectorAll('.tab-page').forEach(page => page.classList.remove('active'));
+        button.classList.add('active');
+        document.querySelector(`#${button.dataset.tab}`).classList.add('active');
+        scheduleRender();
+      });
+    });
+
+    setExpiryOptions([nextThursdayDate()], nextThursdayDate());
+    updateClock();
+    setInterval(updateClock, 1000);
+    seedChain();
+    render();
+    log('Dashboard ready. Use Mock Stream or connect a WebSocket.');
+  </script>
+</body>
+</html>
