@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+websockets
+kiteconnect
+pandas
+openpyxl
+xlwings
